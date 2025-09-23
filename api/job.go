@@ -35,6 +35,7 @@ import (
 	"github.com/tsuru/tsuru/types/log"
 	permTypes "github.com/tsuru/tsuru/types/permission"
 	provisionTypes "github.com/tsuru/tsuru/types/provision"
+	tagTypes "github.com/tsuru/tsuru/types/tag"
 )
 
 type inputJob struct {
@@ -43,6 +44,7 @@ type inputJob struct {
 	Name        string            `json:"name"`
 	Description string            `json:"description"`
 	Pool        string            `json:"pool"`
+	Tags        []string          `json:"tags"`
 	Metadata    appTypes.Metadata `json:"metadata"`
 
 	DeployOptions *jobTypes.DeployOptions `json:"deployOptions"`
@@ -342,6 +344,7 @@ func killJob(w http.ResponseWriter, r *http.Request, t auth.Token) (err error) {
 //	401: Unauthorized
 //	409: Mixed manual and schedule job type
 func updateJob(w http.ResponseWriter, r *http.Request, t auth.Token) (err error) {
+	// TODO: Handle updating tags on job
 	ctx := r.Context()
 	name := r.URL.Query().Get(":name")
 	var ij inputJob
@@ -439,6 +442,7 @@ func createJob(w http.ResponseWriter, r *http.Request, t auth.Token) (err error)
 	ctx := r.Context()
 	var ij inputJob
 	err = ParseInput(r, &ij)
+	fmt.Printf("%+v\n", ij)
 	if err != nil {
 		return err
 	}
@@ -451,6 +455,7 @@ func createJob(w http.ResponseWriter, r *http.Request, t auth.Token) (err error)
 		Name:          ij.Name,
 		Description:   ij.Description,
 		Pool:          ij.Pool,
+		Tags:          ij.Tags,
 		Metadata:      ij.Metadata,
 		DeployOptions: ij.DeployOptions,
 		Spec: jobTypes.JobSpec{
@@ -475,10 +480,18 @@ func createJob(w http.ResponseWriter, r *http.Request, t auth.Token) (err error)
 	if !canCreate {
 		return permission.ErrUnauthorized
 	}
-	u, err := t.User(ctx)
+
+	tagResponse, err := servicemanager.Tag.Validate(ctx, &tagTypes.TagValidationRequest{
+		Operation: tagTypes.OperationKind_OPERATION_KIND_CREATE,
+		Tags:      j.Tags,
+	})
 	if err != nil {
 		return err
 	}
+	if !tagResponse.Valid {
+		return &errors.HTTP{Code: http.StatusBadRequest, Message: tagResponse.Error}
+	}
+
 	evt, err := event.New(ctx, &event.Opts{
 		Target:        jobTarget(j.Name),
 		Kind:          permission.PermJobCreate,
@@ -492,6 +505,11 @@ func createJob(w http.ResponseWriter, r *http.Request, t auth.Token) (err error)
 	defer func() {
 		evt.Done(ctx, err)
 	}()
+
+	u, err := t.User(ctx)
+	if err != nil {
+		return err
+	}
 	err = servicemanager.Job.CreateJob(ctx, j, u)
 	if err != nil {
 		if e, ok := err.(*jobTypes.JobCreationError); ok {

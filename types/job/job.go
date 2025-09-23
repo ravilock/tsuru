@@ -26,6 +26,7 @@ type Job struct {
 	Plan        appTypes.Plan     `json:"plan"`
 	Metadata    appTypes.Metadata `json:"metadata"`
 	Pool        string            `json:"pool"`
+	Tags        []string          `json:"tags"`
 	Description string            `json:"description"`
 
 	DeployOptions *DeployOptions `json:"deployOptions"`
