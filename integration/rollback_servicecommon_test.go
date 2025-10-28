@@ -23,7 +23,6 @@ func rollbackServiceCommonTest() ExecFlow {
 		parallel: false,
 		requires: []string{"team", "poolnames", "installedplatforms"},
 	}
-
 	flow.forward = func(c *check.C, env *Environment) {
 		cwd, err := os.Getwd()
 		c.Assert(err, check.IsNil)
@@ -36,40 +35,21 @@ func rollbackServiceCommonTest() ExecFlow {
 		c.Assert(res, ResultOk)
 
 		// Helper to wait for app to be ready
-		waitForAppReady := func() {
-			ok := retry(3*time.Minute, func() bool {
-				res = T("app", "info", "-a", appName, "--json").Run(env)
-				c.Assert(res, ResultOk)
-
-				var appInfo app.AppInfo
-				err := json.Unmarshal([]byte(res.Stdout.String()), &appInfo)
-				if err != nil {
-					return false
-				}
-
-				// Check if units are started/ready
-				for _, unit := range appInfo.Units {
-					if unit.Status == "started" || unit.Status == "ready" {
-						return true
-					}
-				}
-				return false
+		waitForAppReady := func() *app.AppInfo {
+			appInfo := new(app.AppInfo)
+			ok := retry(3*time.Minute, func() (ready bool) {
+				appInfo, ready = checkAppExternallyAddressable(c, appName, env)
+				return ready
 			})
 			c.Assert(ok, check.Equals, true, check.Commentf("app not ready: %v", res))
+			return appInfo
 		}
 
 		// Test 1: Basic deployment and rollback
 		res = T("app", "deploy", "-a", appName, appDir).Run(env)
 		c.Assert(res, ResultOk)
-		waitForAppReady()
+		appInfo := waitForAppReady()
 
-		// Verify initial deployment
-		res = T("app", "info", "-a", appName, "--json").Run(env)
-		c.Assert(res, ResultOk)
-
-		var appInfo app.AppInfo
-		err = json.Unmarshal([]byte(res.Stdout.String()), &appInfo)
-		c.Assert(err, check.IsNil)
 		c.Assert(len(appInfo.Units), check.Not(check.Equals), 0)
 		c.Assert(appInfo.Units[0].Version, check.Equals, 1)
 
@@ -81,19 +61,10 @@ func rollbackServiceCommonTest() ExecFlow {
 		// Test 3: Create multiversion scenario with preserveVersions
 		res = T("app", "deploy", "--new-version", "-a", appName, appDir).Run(env)
 		c.Assert(res, ResultOk)
-
-		// Wait a bit for deployment to settle
-		time.Sleep(2 * time.Second)
-
-		// Test 4: Verify we have multiple versions (this tests the servicecommon actions fix)
-		res = T("app", "info", "-a", appName, "--json").Run(env)
-		c.Assert(res, ResultOk)
-
-		err = json.Unmarshal([]byte(res.Stdout.String()), &appInfo)
-		c.Assert(err, check.IsNil)
+		appInfo = waitForAppReady()
 		c.Assert(len(appInfo.Units), check.Not(check.Equals), 0)
 
-		// Test 5: Test actual rollback functionality using proper rollback command
+		// Test 4: Test actual rollback functionality using proper rollback command
 		// Get the list of available deployments to rollback to
 		res = T("app", "deploy", "list", "-a", appName, "--json").Run(env)
 		c.Assert(res, ResultOk)
@@ -131,22 +102,16 @@ func rollbackServiceCommonTest() ExecFlow {
 		c.Assert(res, ResultOk)
 		waitForAppReady()
 
-		// Test 6: Test scaling operations after rollback
+		// Test 5: Test scaling operations after rollback
 		res = T("unit", "add", "2", "-a", appName).Run(env)
 		c.Assert(res, ResultOk)
 		waitForAppReady()
 
 		res = T("unit", "remove", "1", "-a", appName).Run(env)
 		c.Assert(res, ResultOk)
-		waitForAppReady()
+		appInfo = waitForAppReady()
 
-		// Test 7: Final verification using JSON output
-		res = T("app", "info", "-a", appName, "--json").Run(env)
-		c.Assert(res, ResultOk)
-
-		err = json.Unmarshal([]byte(res.Stdout.String()), &appInfo)
-		c.Assert(err, check.IsNil)
-
+		// Test 6: Final verification using output
 		if len(appInfo.Routers) > 0 {
 			routerAddr := appInfo.Routers[0].Address
 			cmd := NewCommand("curl", "-m5", "-sSf", routerAddr+"/health")
@@ -157,12 +122,10 @@ func rollbackServiceCommonTest() ExecFlow {
 			c.Assert(ok, check.Equals, true, check.Commentf("health check failed: %v", res))
 		}
 	}
-
 	flow.backward = func(c *check.C, env *Environment) {
 		appName := slugifyName(fmt.Sprintf("rollback-servicecommon-%s-iapp", env.Get("pool")))
 		res := T("app", "remove", "-y", "-a", appName).Run(env)
 		c.Check(res, ResultOk)
 	}
-
 	return flow
 }
