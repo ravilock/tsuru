@@ -64,7 +64,6 @@ func (s *EventSuite) SetUpSuite(c *check.C) {
 	config.Set("database:name", "tsuru_events_api_tests")
 	config.Set("auth:hash-cost", bcrypt.MinCost)
 
-	storagev2.Reset()
 }
 
 func (s *EventSuite) TearDownSuite(c *check.C) {

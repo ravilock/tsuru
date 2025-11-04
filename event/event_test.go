@@ -48,7 +48,6 @@ func setBaseConfig() {
 	config.Set("database:name", "tsuru_events_tests")
 	config.Set("auth:hash-cost", bcrypt.MinCost)
 
-	storagev2.Reset()
 }
 
 func (s *S) SetUpTest(c *check.C) {
@@ -801,7 +800,7 @@ func (s *S) TestEventDoneLogError(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 	config.Set("database:url", "127.0.0.1:9999")
-	storagev2.Reset()
+	storagev2.Reset() // Force new connection with bad URL
 	err = evt.Done(context.TODO(), nil)
 	c.Assert(err, check.ErrorMatches, ".*connection refused.*")
 	c.Assert(logBuf.String(), check.Matches, `(?s).*connection refused.*`)

@@ -21,7 +21,6 @@ func (s *S) SetUpTest(c *check.C) {
 	config.Set("database:url", "127.0.0.1:27017?maxPoolSize=100")
 	config.Set("database:name", "provision_dockercommon_internal_tests_s")
 	config.Set("docker:registry", "my.registry")
-	storagev2.Reset()
 	err := storagev2.ClearAllCollections(nil)
 	c.Assert(err, check.IsNil)
 	servicemanager.AppVersion, err = version.AppVersionService()

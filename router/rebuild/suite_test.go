@@ -50,7 +50,6 @@ func (s *S) SetUpSuite(c *check.C) {
 	config.Set("auth:hash-cost", bcrypt.MinCost)
 	provision.DefaultProvisioner = "fake"
 
-	storagev2.Reset()
 }
 
 func (s *S) TearDownSuite(c *check.C) {

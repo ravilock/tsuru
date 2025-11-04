@@ -71,7 +71,6 @@ func (s *AuthSuite) SetUpSuite(c *check.C) {
 	app.AuthScheme = nativeScheme
 	s.testServer = RunServer(true)
 
-	storagev2.Reset()
 }
 
 func (s *AuthSuite) TearDownSuite(c *check.C) {

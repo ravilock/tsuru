@@ -48,8 +48,6 @@ func (s *ProvisionSuite) SetUpTest(c *check.C) {
 	config.Set("database:name", "tsuru_api_service_test")
 	config.Set("auth:hash-cost", bcrypt.MinCost)
 
-	storagev2.Reset()
-
 	storagev2.ClearAllCollections(nil)
 	s.createUserAndTeam(c)
 	s.testServer = RunServer(true)

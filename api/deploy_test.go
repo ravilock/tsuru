@@ -91,7 +91,6 @@ func (s *DeploySuite) SetUpSuite(c *check.C) {
 	config.Set("database:name", "tsuru_deploy_api_tests")
 	config.Set("auth:hash-cost", bcrypt.MinCost)
 
-	storagev2.Reset()
 	s.testServer = RunServer(true)
 }
 

@@ -45,8 +45,6 @@ func (s *S) SetUpTest(c *check.C) {
 	config.Set("database:name", "tsuru_events_list_tests")
 	config.Set("auth:hash-cost", bcrypt.MinCost)
 
-	storagev2.Reset()
-
 	err := storagev2.ClearAllCollections(nil)
 	c.Assert(err, check.IsNil)
 	nativeScheme := auth.ManagedScheme(native.NativeScheme{})

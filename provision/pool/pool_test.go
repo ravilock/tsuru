@@ -51,8 +51,6 @@ func (s *S) SetUpSuite(c *check.C) {
 	config.Set("database:name", "pool_tests_s")
 	var err error
 
-	storagev2.Reset()
-
 	s.collection, err = storagev2.PoolCollection()
 	c.Assert(err, check.IsNil)
 

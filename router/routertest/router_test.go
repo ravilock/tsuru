@@ -53,7 +53,6 @@ func (s *S) SetUpSuite(c *check.C) {
 	config.Set("routers:fake:type", "fake")
 	s.localhost, _ = url.Parse("http://127.0.0.1")
 
-	storagev2.Reset()
 }
 
 func (s *S) SetUpTest(c *check.C) {

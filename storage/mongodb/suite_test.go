@@ -33,7 +33,6 @@ func (t *mongodbBaseTest) SetUpSuite(c *check.C) {
 	// Therefore, tests may not work properly and you need an individual db for this test suite.
 	config.Set("database:name", t.dbName())
 
-	storagev2.Reset()
 }
 
 func (t *mongodbBaseTest) SetUpTest(c *check.C) {

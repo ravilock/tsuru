@@ -64,7 +64,6 @@ func (s *S) SetUpSuite(c *check.C) {
 	config.Set("database:url", "127.0.0.1:27017?maxPoolSize=100")
 	config.Set("database:name", "tsuru_service_test")
 
-	storagev2.Reset()
 }
 
 func (s *S) SetUpTest(c *check.C) {

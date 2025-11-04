@@ -44,7 +44,6 @@ func (s *ServiceSuite) SetUpSuite(c *check.C) {
 	config.Set("database:url", "127.0.0.1:27017?maxPoolSize=100")
 	config.Set("database:name", "applog_pkg_service_suite_tests")
 
-	storagev2.Reset()
 }
 
 func (s *ServiceSuite) TearDownSuite(c *check.C) {

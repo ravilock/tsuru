@@ -125,7 +125,6 @@ func (s *S) SetUpSuite(c *check.C) {
 	config.Set("docker:registry", "registry.somewhere")
 	config.Set("auth:hash-cost", bcrypt.MinCost)
 	var err error
-	storagev2.Reset()
 	s.provisioner = &provisiontest.JobProvisioner{
 		FakeProvisioner: provisiontest.ProvisionerInstance,
 	}

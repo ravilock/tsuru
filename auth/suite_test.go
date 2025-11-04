@@ -38,8 +38,6 @@ func (s *S) SetUpSuite(c *check.C) {
 	config.Set("smtp:user", "root")
 	var err error
 
-	storagev2.Reset()
-
 	servicemanager.TeamToken, err = TeamTokenService()
 	c.Assert(err, check.IsNil)
 	servicemanager.Team, err = TeamService()

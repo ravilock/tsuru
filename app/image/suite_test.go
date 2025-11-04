@@ -31,7 +31,6 @@ func (s *S) SetUpSuite(c *check.C) {
 	config.Set("docker:collection", "docker")
 	config.Set("docker:repository-namespace", "tsuru")
 
-	storagev2.Reset()
 }
 
 func (s *S) SetUpTest(c *check.C) {

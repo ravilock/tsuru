@@ -79,7 +79,6 @@ func (s *S) SetUpSuite(c *check.C) {
 	config.Set("routers:fake:type", "fake")
 	config.Set("routers:fake:default", true)
 
-	storagev2.Reset()
 }
 
 func (s *S) TearDownSuite(c *check.C) {

@@ -115,8 +115,6 @@ func (s *S) SetUpTest(c *check.C) {
 	routertest.FakeRouter.Reset()
 	routertest.TLSRouter.Reset()
 
-	storagev2.Reset()
-
 	storagev2.ClearAllCollections(nil)
 	s.createUserAndTeam(c)
 	s.provisioner = provisiontest.ProvisionerInstance
@@ -221,5 +219,4 @@ func resetConfig(c *check.C) {
 	config.Set("database:name", "tsuru_api_base_test")
 	config.Set("auth:hash-cost", bcrypt.MinCost)
 
-	storagev2.Reset()
 }

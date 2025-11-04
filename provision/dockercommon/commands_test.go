@@ -35,7 +35,6 @@ func (s *S) SetUpSuite(c *check.C) {
 	config.Set("database:url", "127.0.0.1:27017?maxPoolSize=100")
 	config.Set("database:name", "provision_dockercommon_tests_s")
 
-	storagev2.Reset()
 }
 
 func (s *S) TearDownSuite(c *check.C) {

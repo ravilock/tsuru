@@ -103,8 +103,6 @@ func (s *S) SetUpSuite(c *check.C) {
 	config.Set("routers:fake:type", "fake")
 	config.Set("auth:hash-cost", bcrypt.MinCost)
 
-	storagev2.Reset()
-
 	s.provisioner = provisiontest.ProvisionerInstance
 	provision.DefaultProvisioner = "fake"
 	AuthScheme = nativeScheme

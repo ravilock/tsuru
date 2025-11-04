@@ -47,8 +47,6 @@ func (s *BindSuite) SetUpSuite(c *check.C) {
 	config.Set("database:name", "tsuru_service_bind_test")
 	config.Set("routers:fake:type", "fake")
 
-	storagev2.Reset()
-
 	app.AuthScheme = auth.Scheme(native.NativeScheme{})
 }
 

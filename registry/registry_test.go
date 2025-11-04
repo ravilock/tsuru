@@ -51,7 +51,6 @@ func (s *S) SetUpSuite(c *check.C) {
 	s.server, err = registrytest.NewServer("127.0.0.1:0")
 	c.Assert(err, check.IsNil)
 	provision.DefaultProvisioner = "fake"
-	storagev2.Reset()
 
 }
 

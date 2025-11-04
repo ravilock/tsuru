@@ -27,7 +27,6 @@ func (s *S) SetUpSuite(c *check.C) {
 	config.Set("database:url", "127.0.0.1:27017?maxPoolSize=100")
 	config.Set("database:name", "router_tests")
 	var err error
-	storagev2.Reset()
 	servicemanager.DynamicRouter, err = DynamicRouterService()
 	c.Assert(err, check.IsNil)
 

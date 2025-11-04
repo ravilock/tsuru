@@ -63,7 +63,6 @@ func (s *PlatformSuite) SetUpTest(c *check.C) {
 	config.Set("database:driver", "mongodb")
 	config.Set("database:url", "127.0.0.1:27017?maxPoolSize=100")
 	config.Set("database:name", "tsuru_api_platform_test")
-	storagev2.Reset()
 	app.AuthScheme = nativeScheme
 	storagev2.ClearAllCollections(nil)
 	provision.DefaultProvisioner = "fake-extensible"

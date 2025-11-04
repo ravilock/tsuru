@@ -33,7 +33,6 @@ func (s *HandlerSuite) SetUpSuite(c *check.C) {
 	config.Set("database:name", "tsuru_api_handler_test")
 	config.Set("auth:hash-cost", bcrypt.MinCost)
 
-	storagev2.Reset()
 }
 
 func (s *HandlerSuite) SetUpTest(c *check.C) {

@@ -78,8 +78,6 @@ func (s *ServiceInstanceSuite) SetUpTest(c *check.C) {
 	config.Set("routers:fake:type", "fake")
 	var err error
 
-	storagev2.Reset()
-
 	storagev2.ClearAllCollections(nil)
 	s.team = &authTypes.Team{Name: "tsuruteam"}
 	_, s.token = permissiontest.CustomUserWithPermission(c, nativeScheme, "consumption-master-user", permTypes.Permission{

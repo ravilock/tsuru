@@ -29,8 +29,6 @@ func (s *S) SetUpSuite(c *check.C) {
 	config.Set("docker:collection", "docker")
 	config.Set("docker:repository-namespace", "tsuru")
 
-	storagev2.Reset()
-
 	servicemanager.App = &appTypes.MockAppService{}
 }
 

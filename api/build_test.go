@@ -79,7 +79,6 @@ func (s *BuildSuite) SetUpSuite(c *check.C) {
 	config.Set("database:url", "127.0.0.1:27017?maxPoolSize=100")
 	config.Set("database:name", "tsuru_deploy_api_tests")
 	config.Set("auth:hash-cost", bcrypt.MinCost)
-	storagev2.Reset()
 	s.testServer = RunServer(true)
 }
 

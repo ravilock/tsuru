@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/tsuru/config"
-	"github.com/tsuru/tsuru/db/storagev2"
 	_ "github.com/tsuru/tsuru/storage/mongodb"
 	"github.com/tsuru/tsuru/types/service"
 	check "gopkg.in/check.v1"
@@ -21,7 +20,6 @@ func (s *BrokerSuite) SetUpSuite(c *check.C) {
 	config.Set("database:url", "127.0.0.1:27017?maxPoolSize=100")
 	config.Set("database:name", "tsuru_service_v2_tests")
 
-	storagev2.Reset()
 	svc, err := BrokerService()
 	c.Assert(err, check.IsNil)
 	s.service = svc.(*brokerService)

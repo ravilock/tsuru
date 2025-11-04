@@ -36,8 +36,6 @@ func (s *S) SetUpTest(c *check.C) {
 	config.Set("database:url", "127.0.0.1:27017?maxPoolSize=150")
 	config.Set("database:name", "tsuru_event_webhook_tests")
 
-	storagev2.Reset()
-
 	err := storagev2.ClearAllCollections(nil)
 	c.Assert(err, check.IsNil)
 	svc, err := WebhookService()

@@ -8,6 +8,7 @@ import (
 	"context"
 	"net/url"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -29,6 +30,17 @@ import (
 const (
 	DefaultDatabaseURL  = "mongodb://127.0.0.1:27017"
 	DefaultDatabaseName = "tsuru"
+
+	// Connection timeouts
+	defaultConnectTimeout         = 30 * time.Second
+	defaultServerSelectionTimeout = 10 * time.Second
+	defaultSocketTimeout          = 30 * time.Second
+	defaultPingTimeout            = 5 * time.Second
+
+	// Connection pool settings
+	defaultMinPoolSize   = 2
+	defaultMaxPoolSize   = 100
+	defaultMaxConnecting = 10
 )
 
 var (
@@ -133,24 +145,39 @@ var monitor = mongoprom.NewCommandMonitor(
 func connect() (*mongo.Client, *string, error) {
 	var uri string
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultConnectTimeout)
 	defer cancel()
 
 	uri, databaseName := dbConfig()
 
-	connectedClient, err := mongo.Connect(
-		ctx,
-		options.Client().
-			ApplyURI(uri).
-			SetAppName("tsurud").
-			SetBSONOptions(&options.BSONOptions{
-				NilSliceAsEmpty: true,
-				NilMapAsEmpty:   true,
-			}).
-			SetMonitor(monitor),
-	)
+	clientOpts := options.Client().
+		ApplyURI(uri).
+		SetAppName("tsurud").
+		SetBSONOptions(&options.BSONOptions{
+			NilSliceAsEmpty: true,
+			NilMapAsEmpty:   true,
+		}).
+		SetMonitor(monitor).
+		SetServerSelectionTimeout(defaultServerSelectionTimeout).
+		SetConnectTimeout(defaultServerSelectionTimeout).
+		SetSocketTimeout(defaultSocketTimeout).
+		SetMaxConnecting(uint64(defaultMaxConnecting)).
+		SetMinPoolSize(uint64(defaultMinPoolSize)).
+		SetMaxPoolSize(uint64(defaultMaxPoolSize)).
+		SetRetryWrites(true).
+		SetRetryReads(true)
+
+	connectedClient, err := mongo.Connect(ctx, clientOpts)
 	if err != nil {
 		return nil, nil, err
+	}
+
+	// Verify the connection works
+	pingCtx, pingCancel := context.WithTimeout(context.Background(), defaultPingTimeout)
+	defer pingCancel()
+	err = connectedClient.Ping(pingCtx, nil)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "failed to ping mongodb")
 	}
 
 	swapped := client.CompareAndSwap(nil, connectedClient)
@@ -182,6 +209,33 @@ func dbConfig() (string, string) {
 	if uriParsed.Path == "" {
 		uriParsed.Path = "/"
 	}
+
+	// Add default connection parameters if not present in the URL
+	// These defaults help with connection stability across different platforms
+	// (especially Docker Desktop on macOS where network virtualization adds latency)
+	query := uriParsed.Query()
+	if !query.Has("maxPoolSize") {
+		query.Set("maxPoolSize", strconv.Itoa(defaultMaxPoolSize))
+	}
+	if !query.Has("minPoolSize") {
+		query.Set("minPoolSize", strconv.Itoa(defaultMinPoolSize))
+	}
+	if !query.Has("serverSelectionTimeoutMS") {
+		query.Set("serverSelectionTimeoutMS", strconv.FormatInt(defaultServerSelectionTimeout.Milliseconds(), 10))
+	}
+	if !query.Has("connectTimeoutMS") {
+		query.Set("connectTimeoutMS", strconv.FormatInt(defaultServerSelectionTimeout.Milliseconds(), 10))
+	}
+	if !query.Has("socketTimeoutMS") {
+		query.Set("socketTimeoutMS", strconv.FormatInt(defaultSocketTimeout.Milliseconds(), 10))
+	}
+	if !query.Has("retryWrites") {
+		query.Set("retryWrites", "true")
+	}
+	if !query.Has("retryReads") {
+		query.Set("retryReads", "true")
+	}
+	uriParsed.RawQuery = query.Encode()
 
 	dbname, _ := config.GetString("database:name")
 	if dbname == "" {

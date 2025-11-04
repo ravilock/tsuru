@@ -42,7 +42,6 @@ func (s *PlatformSuite) SetUpSuite(c *check.C) {
 	}
 	c.Assert(err, check.IsNil)
 
-	storagev2.Reset()
 }
 
 func (s *PlatformSuite) TearDownSuite(c *check.C) {

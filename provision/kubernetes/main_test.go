@@ -19,7 +19,6 @@ func TestMain(m *testing.M) {
 func setup() {
 	setupConfig()
 
-	storagev2.Reset()
 	err := storagev2.ClearAllCollections(nil)
 	if err != nil {
 		log.Fatal("failed to clear storage collections", err)
