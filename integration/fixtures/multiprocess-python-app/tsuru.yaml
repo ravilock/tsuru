@@ -1,0 +1,20 @@
+hooks:
+  build:
+    - find | grep version_hash.txt
+    - cat $(find | grep version_hash.txt)
+processes:
+  - name: web
+    command: python app.py
+    healthcheck:
+      path: /health
+      scheme: http
+  - name: web2
+    command: python app.py
+    healthcheck:
+      path: /health
+      scheme: http
+  - name: web3
+    command: python app.py
+    healthcheck:
+      path: /health
+      scheme: http
