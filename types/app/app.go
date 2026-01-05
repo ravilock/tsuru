@@ -32,7 +32,6 @@ type App struct {
 	Owner           string
 	Plan            Plan
 	UpdatePlatform  bool
-	Lock            AppLock
 	Pool            string
 	Description     string
 	Router          string // TODO: drop Router field and use just on inputApp
@@ -83,7 +82,6 @@ type Filter struct {
 	Pool        string
 	Pools       []string
 	Statuses    []string
-	Locked      bool
 	Tags        []string
 	Extra       map[string][]string
 }
@@ -112,7 +110,6 @@ type AppInfo struct {
 	Description string   `json:"description"`
 	Deploys     uint     `json:"deploys"`
 	TeamOwner   string   `json:"teamowner"`
-	Lock        AppLock  `json:"lock"`
 	Tags        []string `json:"tags"`
 	Metadata    Metadata `json:"metadata"`
 
@@ -139,11 +136,12 @@ type AppInfo struct {
 }
 
 type AppInternalAddress struct {
-	Domain   string
-	Protocol string
-	Port     int32
-	Version  string
-	Process  string
+	Domain     string
+	Protocol   string
+	Port       int32
+	TargetPort int `json:"TargetPort,omitempty"`
+	Version    string
+	Process    string
 }
 
 // AppResume is a minimal representation of the app, created to make appList
@@ -157,7 +155,6 @@ type AppResume struct {
 	CName       []string         `json:"cname"`
 	IP          string           `json:"ip"`
 	Routers     []AppRouter      `json:"routers"`
-	Lock        AppLock          `json:"lock"`
 	Tags        []string         `json:"tags"`
 	Error       string           `json:"error,omitempty"`
 	Platform    string           `json:"platform,omitempty"`
