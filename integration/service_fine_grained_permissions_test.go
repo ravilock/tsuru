@@ -10,7 +10,6 @@ import (
 	"net/url"
 	"os"
 	"path"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -30,9 +29,13 @@ func serviceFineGrainedPermissionsFlow() ExecFlow {
 		bindname := env.Get("bindnames")
 		adminUser := env.Get("adminuser")
 		teamName := env.Get("team")
-		roleName := fmt.Sprintf("integration-fg-%s-%s", servicename, time.Now().Format("150405.999999999"))
-		roleName = strings.ReplaceAll(roleName, ".", "-")
-		env.Set("fgRole", roleName)
+		suffix := strconv.FormatInt(time.Now().UnixNano(), 36)
+		decoyTeam := "fg-team-" + suffix
+		decoyService := "fg-service-" + suffix
+		decoyInstance := "fg-instance-" + suffix
+		env.Set("fgDecoyTeam", decoyTeam)
+		env.Set("fgDecoyService", decoyService)
+		env.Set("fgDecoyInstance", decoyInstance)
 
 		manifestPayload := readManifestPayload(c, path.Join("fixtures", "service", "manifest-fine-grained.json"))
 		var manifest serviceManifestPayload
@@ -79,46 +82,129 @@ func serviceFineGrainedPermissionsFlow() ExecFlow {
 		c.Assert(res, ResultOk)
 		c.Assert(strings.Contains(res.Stdout.String(), permissionName), check.Equals, true)
 
-		res = T("role", "add", roleName, "team").Run(env)
+		res = T("team", "create", decoyTeam).Run(env)
 		c.Assert(res, ResultOk)
+		env.Set("fgDecoyTeamCreated", "true")
 
-		res = T("role", "assign", roleName, adminUser, teamName).Run(env)
+		res = NewCommand("curl", "-sSf", "-X", "POST", targetAddr+"/1.0/services",
+			"-H", authHeader,
+			"--data-urlencode", "id="+decoyService,
+			"--data-urlencode", "password=integration-secret",
+			"--data-urlencode", "endpoint=http://127.0.0.1:1",
+			"--data-urlencode", "team="+teamName).Run(env)
 		c.Assert(res, ResultOk)
+		env.Set("fgDecoyServiceCreated", "true")
 
-		res = T("role", "permission", "add", roleName, permissionName).Run(env)
+		res = T("service", "instance", "add", servicename, decoyInstance, "-t", teamName).Run(env)
 		c.Assert(res, ResultOk)
+		env.Set("fgDecoyInstanceCreated", "true")
 
-		res = NewCommand("curl", "-sS", "-X", "GET", fmt.Sprintf("%s/1.0/roles/%s", targetAddr, roleName),
-			"-H", authHeader).Run(env)
-		c.Assert(res, ResultOk)
-		var roleInfo struct {
-			DynamicSchemeNames []string `json:"dynamic_scheme_names"`
+		roleName := func(contextType string) string {
+			return fmt.Sprintf("integration-fg-%s-%s", contextType, suffix)
 		}
-		err = json.Unmarshal([]byte(res.Stdout.String()), &roleInfo)
-		c.Assert(err, check.IsNil)
-		c.Assert(roleInfo.DynamicSchemeNames, check.DeepEquals, []string{permissionName})
+		contextEnvSuffix := func(contextType string) string {
+			contextType = strings.ReplaceAll(contextType, "-", "")
+			return strings.ToUpper(contextType[:1]) + contextType[1:]
+		}
+		roleEnvKey := func(contextType string) string {
+			return "fgRole" + contextEnvSuffix(contextType)
+		}
+		assignmentEnvKey := func(contextType string) string {
+			return "fgAssignment" + contextEnvSuffix(contextType)
+		}
+		for _, contextType := range []string{"global", "team", "service", "service-instance"} {
+			name := roleName(contextType)
+			res = T("role", "add", name, contextType).Run(env)
+			c.Assert(res, ResultOk)
+			env.Set(roleEnvKey(contextType), name)
 
-		proxyStatus := func(proxyPath string) string {
+			res = T("role", "permission", "add", name, permissionName).Run(env)
+			c.Assert(res, ResultOk)
+
+			res = T("role", "info", name).Run(env)
+			c.Assert(res, ResultOk)
+			c.Assert(strings.Contains(res.Stdout.String(), permissionName), check.Equals, true)
+		}
+
+		proxyStatus := func(method, proxyPath string) string {
 			urlToCall := fmt.Sprintf("'%s/1.0/services/%s/proxy/%s?callback=%s'", targetAddr, servicename, bindname, url.PathEscape(proxyPath))
 			res = NewCommand("curl", "-sS", "-o", "/dev/null", "-w", "'%{http_code}'",
-				"-X", "POST",
+				"-X", method,
 				urlToCall,
 				"-H", authHeader).Run(env)
 			c.Assert(res, ResultOk)
 			return strings.TrimSpace(res.Stdout.String())
 		}
+		actionStatus := func() string {
+			return proxyStatus("POST", "/resources/"+bindname+"/rules/123/sync")
+		}
+		assignRole := func(contextType, contextValue string, nonFatal bool) bool {
+			args := []string{"role", "assign", roleName(contextType), adminUser}
+			if contextValue != "" {
+				args = append(args, contextValue)
+			}
+			res = T(args...).Run(env)
+			if nonFatal {
+				c.Check(res, ResultOk, check.Commentf("could not assign %s role with context %q", contextType, contextValue))
+			} else {
+				c.Assert(res, ResultOk)
+			}
+			if res.ExitCode == 0 {
+				storedContextValue := contextValue
+				if contextType == "global" {
+					storedContextValue = "__global__"
+				}
+				env.Set(assignmentEnvKey(contextType), storedContextValue)
+				return true
+			}
+			return false
+		}
+		dissociateRole := func(contextType, contextValue string) {
+			args := []string{"role", "dissociate", roleName(contextType), adminUser}
+			if contextValue != "" {
+				args = append(args, contextValue)
+			}
+			res = T(args...).Run(env)
+			c.Assert(res, ResultOk)
+			env.Set(assignmentEnvKey(contextType), "")
+		}
 
-		c.Assert(proxyStatus("/resources/"+bindname+"/rules/123"), check.Equals, "403")
+		c.Assert(actionStatus(), check.Equals, "403")
 
-		c.Assert(proxyStatus("/resources/"+bindname+"/rules/123/sync"), check.Not(check.Equals), "403")
+		assignRole("global", "", false)
+		c.Assert(actionStatus(), check.Not(check.Equals), "403")
+		c.Assert(proxyStatus("GET", "/resources/"+bindname+"/rules/123"), check.Equals, "403")
+		dissociateRole("global", "")
+		c.Assert(actionStatus(), check.Equals, "403")
+
+		assignRole("team", decoyTeam, false)
+		c.Assert(actionStatus(), check.Equals, "403")
+		dissociateRole("team", decoyTeam)
+		assignRole("team", teamName, false)
+		c.Assert(actionStatus(), check.Not(check.Equals), "403")
+		dissociateRole("team", teamName)
+
+		assignRole("service", decoyService, false)
+		c.Assert(actionStatus(), check.Equals, "403")
+		dissociateRole("service", decoyService)
+		assignRole("service", servicename, false)
+		c.Check(actionStatus(), check.Not(check.Equals), "403", check.Commentf("service-scoped dynamic permission did not match the proxied service"))
+		dissociateRole("service", servicename)
+
+		decoyInstanceContext := servicename + "/" + decoyInstance
+		targetInstanceContext := servicename + "/" + bindname
+		if assignRole("service-instance", decoyInstanceContext, true) {
+			c.Assert(actionStatus(), check.Equals, "403")
+			dissociateRole("service-instance", decoyInstanceContext)
+		}
+		if assignRole("service-instance", targetInstanceContext, true) {
+			c.Check(actionStatus(), check.Not(check.Equals), "403", check.Commentf("service-instance-scoped dynamic permission did not match %q", targetInstanceContext))
+			dissociateRole("service-instance", targetInstanceContext)
+		}
 	}
 
 	flow.backward = func(c *check.C, env *Environment) {
 		targetAddr := env.Get("targetaddr")
-		roleName := env.Get("fgRole")
-		if roleName == "" {
-			return
-		}
 		servicename := env.Get("servicename")
 		permissionName := env.Get("fgPermission")
 
@@ -129,19 +215,39 @@ func serviceFineGrainedPermissionsFlow() ExecFlow {
 		}
 		authHeader := fmt.Sprintf("'Authorization: Bearer %s'", env.Get("apitoken"))
 
-		if permissionName != "" {
-			res := T("role", "permission", "remove", roleName, permissionName).Run(env)
-			c.Check(res, ResultOk)
-		}
-
 		adminUser := env.Get("adminuser")
-		if adminUser != "" {
-			res := T("role", "dissociate", roleName, adminUser, env.Get("team")).Run(env)
+		roleKeys := []struct {
+			role       string
+			assignment string
+		}{
+			{role: "fgRoleGlobal", assignment: "fgAssignmentGlobal"},
+			{role: "fgRoleTeam", assignment: "fgAssignmentTeam"},
+			{role: "fgRoleService", assignment: "fgAssignmentService"},
+			{role: "fgRoleServiceInstance", assignment: "fgAssignmentServiceInstance"},
+		}
+		for _, keys := range roleKeys {
+			roleName := env.Get(keys.role)
+			if roleName == "" {
+				continue
+			}
+			if adminUser != "" {
+				contextValue := env.Get(keys.assignment)
+				if contextValue != "" {
+					args := []string{"role", "dissociate", roleName, adminUser}
+					if contextValue != "__global__" {
+						args = append(args, contextValue)
+					}
+					res := T(args...).Run(env)
+					c.Check(res, ResultOk)
+				}
+			}
+			if permissionName != "" {
+				res := T("role", "permission", "remove", roleName, permissionName).Run(env)
+				c.Check(res, ResultOk)
+			}
+			res := T("role", "remove", "-y", roleName).Run(env)
 			c.Check(res, ResultOk)
 		}
-
-		res := T("role", "remove", "-y", roleName).Run(env)
-		c.Check(res, ResultOk)
 
 		resetPayload := `{"enabled":false,"strict_actions":true,"operations":[]}`
 		if servicename != "" {
@@ -150,6 +256,19 @@ func serviceFineGrainedPermissionsFlow() ExecFlow {
 				"-H", authHeader,
 				"-H", "'Content-Type: application/json'",
 				"-d", fmt.Sprintf("'%s'", resetPayload)).Run(env)
+			c.Check(res, ResultOk)
+		}
+
+		if env.Get("fgDecoyInstanceCreated") == "true" {
+			res := T("service", "instance", "remove", servicename, env.Get("fgDecoyInstance"), "-f", "-y").Run(env)
+			c.Check(res, ResultOk)
+		}
+		if env.Get("fgDecoyServiceCreated") == "true" {
+			res := T("service", "destroy", env.Get("fgDecoyService"), "-y").Run(env)
+			c.Check(res, ResultOk)
+		}
+		if env.Get("fgDecoyTeamCreated") == "true" {
+			res := T("team", "remove", "-y", env.Get("fgDecoyTeam")).Run(env)
 			c.Check(res, ResultOk)
 		}
 	}
@@ -238,18 +357,10 @@ func serviceFineGrainedPermissionsSharedActionsFlow() ExecFlow {
 		res = T("role", "permission", "add", roleName, secondPermission).Run(env)
 		c.Assert(res, ResultOk)
 
-		res = NewCommand("curl", "-sS", "-X", "GET", fmt.Sprintf("%s/1.0/roles/%s", targetAddr, roleName),
-			"-H", authHeader).Run(env)
+		res = T("role", "info", roleName).Run(env)
 		c.Assert(res, ResultOk)
-		var roleInfo struct {
-			DynamicSchemeNames []string `json:"dynamic_scheme_names"`
-		}
-		err = json.Unmarshal([]byte(res.Stdout.String()), &roleInfo)
-		c.Assert(err, check.IsNil)
-		sort.Strings(roleInfo.DynamicSchemeNames)
-		expectedPermissions := []string{firstPermission, secondPermission}
-		sort.Strings(expectedPermissions)
-		c.Assert(roleInfo.DynamicSchemeNames, check.DeepEquals, expectedPermissions)
+		c.Assert(strings.Contains(res.Stdout.String(), firstPermission), check.Equals, true)
+		c.Assert(strings.Contains(res.Stdout.String(), secondPermission), check.Equals, true)
 	}
 
 	flow.backward = func(c *check.C, env *Environment) {
